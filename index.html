@@ -1,0 +1,43 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Space Type Generator</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: #ffffff;
+      font-family: sans-serif;
+    }
+
+    #textfield {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      width: 200px;
+      padding: 8px;
+      font-size: 16px;
+      z-index: 10;
+    }
+
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <!-- Text input for typing the 3D letters -->
+  <!--<input type="text" id="textfield" value="I-TRY-ALL-THINGS;-I-ACHIEVE-WHAT-I-CAN.//" placeholder="Type something...">-->
+
+  <!-- p5.js library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <!-- p5 DOM library for sliders, buttons, inputs -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/addons/p5.dom.min.js"></script>
+
+  <!-- Your main JavaScript file -->
+   <script src="keyboardengine.js"></script>
+  <script src="sketch.js"></script>
+</body>
+</html>
