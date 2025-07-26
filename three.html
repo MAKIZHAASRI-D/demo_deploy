@@ -1,0 +1,301 @@
+<!--<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>3 Circles in Corners with Wobble - Canvas 2D</title>
+  <style>
+    body { margin: 0; background: black; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<script>
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+
+  const radius = 50;
+  const margin = 60;
+
+  // Base fixed positions for spheres in corners with margin
+  let basePositions = {
+    topLeft: { x: margin, y: margin },
+    bottomLeft: { x: margin, y: 0 }, // y will be updated on resize
+    bottomRight: { x: 0, y: 0 } // will update x and y on resize
+  };
+
+  // Animation parameters for wobble
+  let wobbleAmplitude = 10; // max offset in pixels
+  let wobbleSpeed = 0.0025; // speed multiplier
+  let startTime = null;
+
+  const phases = {
+  topLeft: 0,
+  bottomLeft: Math.PI / 2,
+  bottomRight: Math.PI,
+};
+
+  // Update positions that depend on canvas size
+  function updateBasePositions() {
+    basePositions.bottomLeft.y = canvas.height - margin;
+    basePositions.bottomRight.x = canvas.width - margin;
+    basePositions.bottomRight.y = canvas.height - margin;
+  }
+
+  function drawSphereWithSpotlight(x, y) {
+    // Create radial gradient to simulate spot light highlight
+    const gradient = ctx.createRadialGradient(
+      x - radius / 3, y - radius / 3, radius / 5,
+      x, y, radius
+    );
+    gradient.addColorStop(0, 'white');
+    gradient.addColorStop(1, 'black');
+
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Outline for better sphere effect
+    ctx.strokeStyle = 'gray';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    //ctx.stroke();
+  }
+
+  function draw(time) {
+    if (!startTime) startTime = time;
+    let elapsed = time - startTime;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw background black
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Compute wobble offsets based on elapsed time for smooth oscillation
+    //const wobbleX = Math.sin(elapsed * wobbleSpeed) * wobbleAmplitude;
+    //const wobbleY = Math.cos(elapsed * wobbleSpeed * 1.5) * wobbleAmplitude;
+
+    const yOffsetTopLeft = Math.sin(elapsed * wobbleSpeed + phases.topLeft) * wobbleAmplitude;
+  const yOffsetBottomLeft = Math.sin(elapsed * wobbleSpeed + phases.bottomLeft) * wobbleAmplitude;
+  const yOffsetBottomRight = Math.sin(elapsed * wobbleSpeed + phases.bottomRight) * wobbleAmplitude;
+    // Draw spheres with wobble added
+    drawSphereWithSpotlight(basePositions.topLeft.x, basePositions.topLeft.y + yOffsetTopLeft);
+  drawSphereWithSpotlight(basePositions.bottomLeft.x, basePositions.bottomLeft.y + yOffsetBottomLeft);
+  drawSphereWithSpotlight(basePositions.bottomRight.x, basePositions.bottomRight.y + yOffsetBottomRight);
+
+    requestAnimationFrame(draw);
+  }
+
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    updateBasePositions();
+  }
+
+  window.addEventListener('resize', () => {
+    resize();
+  });
+
+  resize();
+  requestAnimationFrame(draw);
+</script>
+</body>
+</html>-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Spheres as in Image - Canvas 2D</title>
+  <style>
+    body { margin: 0; background: white; overflow: hidden; }
+    canvas { display: block; background: white; }
+  </style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<script>
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+
+  const radius = 100; // slightly bigger to match image sizes roughly
+
+  const margin = 80;
+
+  // Base fixed positions for spheres
+  let basePositions = {
+    topLeft: { x: margin, y: margin },
+    bottomLeft: { x: margin, y: 0 }, // y will update on resize
+    bottomRight: { x: 0, y: 0 }     // x and y update on resize
+  };
+
+  const wobbleAmplitude = 10;
+  const wobbleSpeed = 0.0025;
+
+  // Phase offsets for wobble (optional, can be zero if no wobble wanted)
+  const phases = {
+    topLeft: 0,
+    bottomLeft: Math.PI / 2,
+    bottomRight: Math.PI,
+  };
+
+  let startTime = null;
+
+  function updateBasePositions() {
+    basePositions.bottomLeft.y = canvas.height - margin;
+    basePositions.bottomRight.x = canvas.width - margin;
+    basePositions.bottomRight.y = canvas.height - margin;
+  }
+
+  function drawSphereWithSpotlight1(x, y,radius) {
+  // Radial gradient with smooth blend towards the edge
+  const shiftFactor = 1.3; // controls light spot size
+  const gradient = ctx.createRadialGradient(
+    x +radius* shiftFactor /2, // light spot center x offset
+    y - radius* shiftFactor /-3, // light spot center y offset
+    radius / 10,    // very small initial radius for sharp spotlight
+    x, y, radius    // sphere radius for outer circle
+  );
+
+  // Add color stops for smooth blending
+  gradient.addColorStop(0, 'rgba(255, 255, 255, 0.2)');   // bright at center
+  gradient.addColorStop(0.0, 'rgba(255, 255, 255, 0.3)'); // fading outward
+  gradient.addColorStop(1, 'rgba(50, 50, 50, 1)');                      // sphere edge color
+
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.fill();
+}
+  function drawSphereWithSpotlight2(x, y,radius) {
+  // Radial gradient with smooth blend towards the edge
+  const shiftFactor = 1.2; // controls light spot size
+  const gradient = ctx.createRadialGradient(
+    x +radius* shiftFactor /2, // light spot center x offset
+    y - radius* shiftFactor /2, // light spot center y offset
+    radius / 10,    // very small initial radius for sharp spotlight
+    x, y, radius    // sphere radius for outer circle
+  );
+
+  // Add color stops for smooth blending
+  gradient.addColorStop(0, 'rgba(255, 255, 255, 0.2)');   // bright at center
+  gradient.addColorStop(0.0, 'rgba(255, 255, 255, 0.3)'); // fading outward
+  gradient.addColorStop(1, 'rgba(50, 50, 50, 1)');                      // sphere edge color
+
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.fill();
+}
+  function drawSphereWithSpotlight3(x, y,radius) {
+    
+  // Radial gradient with smooth blend towards the edge
+  const shiftFactor = 1.7; // controls light spot size
+  const gradient = ctx.createRadialGradient(
+    x -radius* shiftFactor /2, // light spot center x offset
+    y , // light spot center y offset
+    radius / 10,    // very small initial radius for sharp spotlight
+    x, y, radius    // sphere radius for outer circle
+  );
+
+  // Add color stops for smooth blending
+  gradient.addColorStop(0, 'rgba(255, 255, 255, 0.7)');   // bright at center
+  gradient.addColorStop(0.0, 'rgba(255, 255, 255, 0.3)'); // fading outward
+  gradient.addColorStop(1, 'rgba(50, 50, 50, 1)');                      // sphere edge color
+
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.fill();
+   // reset filter for next drawings
+}
+/*
+  function drawSphereWithSpotlight(x, y) {
+    // Radial gradient for subtle white spot (light from top-left)
+    const gradient = ctx.createRadialGradient(
+  x + radius / 3, y + radius / 3, radius / 8,  // light spot near bottom-right
+  x, y, radius
+);
+    gradient.addColorStop(0, 'rgba(255,255,255,0.8)'); // bright white spot
+    gradient.addColorStop(1, 'black');                   // main black sphere color
+
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // No outline for clean sphere edges
+  }*/
+/*
+  function drawSphereWithSpotlight(x, y, canvasCenterX, canvasCenterY) {
+  // Vector from sphere center to canvas center
+  const dx = (canvasCenterX - x) * 0.3;  // Scale factor controls light displacement
+  const dy = (canvasCenterY - y) * 0.3;
+  
+  // Create radial gradient with light spot shifted toward canvas center
+  const gradient = ctx.createRadialGradient(
+    x + dx,          // shift light spot based on direction to canvas center
+    y + dy,
+    radius / 2,      // smaller radius for highlight size
+    x, y, radius     // full radius of sphere
+  );
+  
+  gradient.addColorStop(0, 'rgba(255,255,255,0.8)'); // bright light spot
+  gradient.addColorStop(1, 'black');                 // sphere color
+  
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.fill();
+}*/
+
+
+  function draw(time) {
+    if (!startTime) startTime = time;
+    const elapsed = time - startTime;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // White background fill (canvas background property also white)
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Calculate vertical wobble per sphere with phase offsets
+    const yOffsetTopLeft = Math.sin(elapsed * wobbleSpeed + phases.topLeft) * wobbleAmplitude;
+    const yOffsetBottomLeft = Math.sin(elapsed * wobbleSpeed + phases.bottomLeft) * wobbleAmplitude;
+    const yOffsetBottomRight = Math.sin(elapsed * wobbleSpeed + phases.bottomRight) * wobbleAmplitude;
+
+    const offsetFromCenter = 400;
+    const topCenterLeftX1 = (canvas.width / 2) - offsetFromCenter;
+    const topCenterLeftX2 = (canvas.width / 2) - offsetFromCenter;
+    const topCenterLeftX3 = (canvas.width / 2) + offsetFromCenter;
+    const topCenterLeftY = 100; // top margin
+
+    const canvasCenterX = canvas.width / 2;
+const canvasCenterY = canvas.height / 2;
+
+
+
+
+    drawSphereWithSpotlight1(topCenterLeftX1, topCenterLeftY-100 + yOffsetTopLeft,40);
+    drawSphereWithSpotlight2(topCenterLeftX2, canvas.height-topCenterLeftY + yOffsetBottomLeft,150);
+    drawSphereWithSpotlight3(topCenterLeftX3, canvas.height-400 + yOffsetBottomRight,70);
+    requestAnimationFrame(draw);
+  }
+
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    updateBasePositions();
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+  requestAnimationFrame(draw);
+</script>
+</body>
+</html>
+

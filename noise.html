@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Reflective Spheres with Orthographic Projection</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: white; }
+    canvas { display: block; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/gl-matrix-min.js"></script>
+
+
+</head>
+<body>
+<canvas id="glcanvas"></canvas>
+<script type="module">
+const canvas = document.getElementById("glcanvas");
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+const gl = canvas.getContext("webgl");
+
+const vertexShaderSource = `
+  attribute vec4 aPosition;
+  attribute vec3 aNormal;
+  uniform mat4 uModelViewMatrix;
+  uniform mat4 uProjectionMatrix;
+  uniform mat3 uNormalMatrix;
+  varying vec3 vNormal;
+  varying vec3 vPosition;
+  void main() {
+    vPosition = vec3(uModelViewMatrix * aPosition);
+    vNormal = normalize(uNormalMatrix * aNormal);
+    gl_Position = uProjectionMatrix * uModelViewMatrix * aPosition;
+  }
+`;
+
+const fragmentShaderSource = `
+  precision mediump float;
+  varying vec3 vNormal;
+  varying vec3 vPosition;
+  uniform vec3 uLightDirection;
+
+  float crystalNoise(vec3 p) {
+    return sin(dot(p, vec3(12.9898, 78.233, 54.53))) * 43758.5453 - floor(sin(dot(p, vec3(12.9898, 78.233, 54.53))) * 43758.5453);
+  }
+
+  void main() {
+    vec3 normal = normalize(vNormal);
+    float diff = max(dot(normal, -uLightDirection), 0.0);
+    float noise = crystalNoise(vPosition * 10.0);
+    float spec = pow(diff, 20.0) * 0.5;
+    float intensity = diff + spec + noise * 0.1;
+    gl_FragColor = vec4(vec3(intensity * 0.2), 1.0);
+  }
+`;
+
+function createShader(gl, type, source) {
+  const shader = gl.createShader(type);
+  gl.shaderSource(shader, source);
+  gl.compileShader(shader);
+  return shader;
+}
+
+function createProgram(gl, vsSource, fsSource) {
+  const vs = createShader(gl, gl.VERTEX_SHADER, vsSource);
+  const fs = createShader(gl, gl.FRAGMENT_SHADER, fsSource);
+  const program = gl.createProgram();
+  gl.attachShader(program, vs);
+  gl.attachShader(program, fs);
+  gl.linkProgram(program);
+  return program;
+}
+
+const program = createProgram(gl, vertexShaderSource, fragmentShaderSource);
+gl.useProgram(program);
+
+const uModelViewMatrix = gl.getUniformLocation(program, "uModelViewMatrix");
+const uProjectionMatrix = gl.getUniformLocation(program, "uProjectionMatrix");
+const uNormalMatrix = gl.getUniformLocation(program, "uNormalMatrix");
+const uLightDirection = gl.getUniformLocation(program, "uLightDirection");
+
+const aPosition = gl.getAttribLocation(program, "aPosition");
+const aNormal = gl.getAttribLocation(program, "aNormal");
+
+function createSphere(radius, latBands, longBands) {
+  const positions = [];
+  const normals = [];
+  const indices = [];
+
+  for (let lat = 0; lat <= latBands; lat++) {
+    const theta = lat * Math.PI / latBands;
+    const sinTheta = Math.sin(theta);
+    const cosTheta = Math.cos(theta);
+
+    for (let lon = 0; lon <= longBands; lon++) {
+      const phi = lon * 2 * Math.PI / longBands;
+      const sinPhi = Math.sin(phi);
+      const cosPhi = Math.cos(phi);
+
+      const x = cosPhi * sinTheta;
+      const y = cosTheta;
+      const z = sinPhi * sinTheta;
+
+      normals.push(x, y, z);
+      positions.push(radius * x, radius * y, radius * z);
+    }
+  }
+
+  for (let lat = 0; lat < latBands; lat++) {
+    for (let lon = 0; lon < longBands; lon++) {
+      const first = lat * (longBands + 1) + lon;
+      const second = first + longBands + 1;
+
+      indices.push(first, second, first + 1);
+      indices.push(second, second + 1, first + 1);
+    }
+  }
+
+  return { positions, normals, indices };
+}
+
+const sphere = createSphere(1, 30, 30);
+
+const positionBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(sphere.positions), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(aPosition);
+gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
+
+const normalBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(sphere.normals), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(aNormal);
+gl.vertexAttribPointer(aNormal, 3, gl.FLOAT, false, 0, 0);
+
+const indexBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(sphere.indices), gl.STATIC_DRAW);
+
+function getNormalMatrix(modelViewMatrix) {
+  const normalMatrix = mat3.create();
+  mat3.normalFromMat4(normalMatrix, modelViewMatrix);
+  return normalMatrix;
+}
+
+function ortho(left, right, bottom, top, near, far) {
+  const out = mat4.create();
+  mat4.ortho(out, left, right, bottom, top, near, far);
+  return out;
+}
+
+function animate(time) {
+  time *= 0.001;
+
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);
+
+  const aspect = canvas.width / canvas.height;
+  const size = 3.0;
+
+  const projection = ortho(-aspect * size, aspect * size, -size, size, -10, 10);
+  gl.uniformMatrix4fv(uProjectionMatrix, false, projection);
+  gl.uniform3fv(uLightDirection, [0.0, -1.0, 1.0]);
+
+  const sphereOffsets = [-2.5, 0.0, 2.5];
+  for (let i = 0; i < 3; i++) {
+    const mv = mat4.create();
+    mat4.translate(mv, mv, [sphereOffsets[i], Math.sin(time + i), -4.0]);
+    mat4.rotateY(mv, mv, time);
+    mat4.rotateX(mv, mv, time * 0.5);
+
+    const normalMatrix = getNormalMatrix(mv);
+    gl.uniformMatrix4fv(uModelViewMatrix, false, mv);
+    gl.uniformMatrix3fv(uNormalMatrix, false, normalMatrix);
+    gl.drawElements(gl.TRIANGLES, sphere.indices.length, gl.UNSIGNED_SHORT, 0);
+  }
+
+  requestAnimationFrame(animate);
+}
+animate(0);
+
+window.addEventListener('resize', () => {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+});
+gl.viewport(0, 0, canvas.width, canvas.height);
+</script>
+<script src="https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/gl-matrix-min.js"></script>
+</body>
+</html>

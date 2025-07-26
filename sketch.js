@@ -280,7 +280,7 @@ let typeStroke=1;
 // CYLINDER PARAMETERS
 let radius = 250;
 let stackNum = 1;
-let rRotate = -20;
+let rRotate = -15;
 let typeY = 40;
 let stackHeight;
 let pieSlice;
@@ -295,9 +295,13 @@ let zoomCamera = 124;
 // COLORS
 const bg_colour = "#FFFFFF";
 const strk_colour = "#000000";
+const staticword_colour="#1b1a1aff"
 
 function preload() {
   font = loadFont('assets/ROMANUS.otf', () => {
+    fontReady = true;
+  });
+  staticfont = loadFont('assets/Avenue de Madison.ttf', () => {
     fontReady = true;
   });
 }
@@ -332,8 +336,8 @@ function draw() {
     resetMatrix();
     translate(0, 0, zoomCamera);
     
-    textFont(font);
-    let centerTextSize = typeY * 3; // Larger for center text
+    textFont(staticfont);
+    let centerTextSize = typeY * 3.5; // Larger for center text
     textSize(centerTextSize);
     
     
@@ -343,11 +347,15 @@ function draw() {
     // Position at center of ring
     translate(-textW/2, textH/3, -radius * 0.6);
     
-    fill(0); // Red color for visibility
+    //fill(50); // Red color for visibility
+    fill(0, 0, 0, 150);
     noStroke();
     //stroke(255, 0, 0); // Red stroke
     //strokeWeight(2);
     textAlign(LEFT, BASELINE);
+    //translate(-textWidth('Hello') / 2, 0);
+    //scale(1.5, 1);
+    //textSize(52);
     text(staticText, 0, 0);
   pop();
 

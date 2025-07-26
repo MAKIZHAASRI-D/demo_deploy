@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Reflective Black Sphere</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #ffffff; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="glcanvas"></canvas>
+<script>
+const canvas = document.getElementById("glcanvas");
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+const gl = canvas.getContext("webgl");
+
+if (!gl) {
+  alert("WebGL not supported");
+}
+
+// Vertex Shader (adds normal vector for lighting)
+
+const vsSource = `
+  attribute vec3 aVertexPosition;
+  attribute vec3 aVertexNormal;
+
+  uniform mat4 uProjectionMatrix;
+  uniform mat4 uModelViewMatrix;
+  uniform mat3 uNormalMatrix;
+
+  varying vec3 vNormal;
+  varying vec3 vPosition;
+
+  void main(void) {
+    vNormal = normalize(uNormalMatrix * aVertexNormal);
+    vec4 mvPosition = uModelViewMatrix * vec4(aVertexPosition, 1.0);
+    vPosition = mvPosition.xyz;
+    gl_Position = uProjectionMatrix * mvPosition;
+  }
+`;
+
+
+// Fragment Shader (Phong lighting)
+
+const fsSource = `
+precision mediump float;
+varying vec3 vNormal;
+varying vec3 vPosition;
+uniform vec3 uLightDirection;
+float hash(vec3 p) {
+    p = fract(p * 0.3183099 + 0.1);
+    p *= 17.0;
+    return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+}
+float crystalNoise(vec3 p) {
+    float n = 0.0;
+    for (float i = 1.0; i < 4.0; i++) {
+        float scale = pow(2.0, i);
+        n += (1.0 / scale) * abs(hash(p * scale) - 0.5);
+    }
+    return n;
+}
+
+void main(void) {
+    vec3 normal = normalize(vNormal);
+
+    // Fixed light direction (e.g., top-right-front)
+    //vec3 lightDir = normalize(vec3(1.0, 1.0, 0.8));
+    
+    vec3 lightDir = normalize(uLightDirection);
+
+
+    float crystal = crystalNoise(vPosition * 2.0);
+
+    // Lambertian reflectance (diffuse lighting)
+    float diff = max(dot(normal, lightDir), 0.0);
+
+    // Map to a soft brightness between black and gray
+    float brightness = mix(0.01, 0.5, diff); // adjust range here
+
+    gl_FragColor = vec4(vec3(brightness), 1.0); // grayscale output
+}
+`;
+
+
+
+
+// Shader compile helpers
+function loadShader(type, source) {
+  const shader = gl.createShader(type);
+  gl.shaderSource(shader, source);
+  gl.compileShader(shader);
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(shader));
+  }
+
+  return shader;
+}
+
+const vertexShader = loadShader(gl.VERTEX_SHADER, vsSource);
+const fragmentShader = loadShader(gl.FRAGMENT_SHADER, fsSource);
+
+// Program setup
+const shaderProgram = gl.createProgram();
+gl.attachShader(shaderProgram, vertexShader);
+gl.attachShader(shaderProgram, fragmentShader);
+gl.linkProgram(shaderProgram);
+gl.useProgram(shaderProgram);
+
+// Sphere data
+function createSphere(radius, latBands, longBands) {
+  const positions = [];
+  const normals = [];
+  const indices = [];
+
+  for (let lat = 0; lat <= latBands; lat++) {
+    const theta = lat * Math.PI / latBands;
+    const sinTheta = Math.sin(theta);
+    const cosTheta = Math.cos(theta);
+
+    for (let lon = 0; lon <= longBands; lon++) {
+      const phi = lon * 2 * Math.PI / longBands;
+      const sinPhi = Math.sin(phi);
+      const cosPhi = Math.cos(phi);
+
+      const x = cosPhi * sinTheta;
+      const y = cosTheta;
+      const z = sinPhi * sinTheta;
+
+      normals.push(x, y, z);
+      positions.push(radius * x, radius * y, radius * z);
+    }
+  }
+
+  for (let lat = 0; lat < latBands; lat++) {
+    for (let lon = 0; lon < longBands; lon++) {
+      const first = (lat * (longBands + 1)) + lon;
+      const second = first + longBands + 1;
+      indices.push(first, second, first + 1);
+      indices.push(second, second + 1, first + 1);
+    }
+  }
+
+  return { positions, normals, indices };
+}
+
+const sphere = createSphere(1.5, 30, 30);
+
+// Buffers
+function createBuffer(data, itemSize, attribLocation) {
+  const buffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(attribLocation);
+  gl.vertexAttribPointer(attribLocation, itemSize, gl.FLOAT, false, 0, 0);
+  return buffer;
+}
+
+const posLoc = gl.getAttribLocation(shaderProgram, 'aVertexPosition');
+const normLoc = gl.getAttribLocation(shaderProgram, 'aVertexNormal');
+
+createBuffer(sphere.positions, 3, posLoc);
+createBuffer(sphere.normals, 3, normLoc);
+
+const indexBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(sphere.indices), gl.STATIC_DRAW);
+/*
+// Matrices
+function perspectiveMatrix(fov, aspect, near, far) {
+  const f = 1.0 / Math.tan(fov / 2);
+  const nf = 1 / (near - far);
+  return new Float32Array([
+    f/aspect, 0, 0, 0,
+    0, f, 0, 0,
+    0, 0, (far + near) * nf, -1,
+    0, 0, (2 * far * near) * nf, 0
+  ]);
+}
+
+
+function identityMatrix() {
+  return new Float32Array([
+    1, 0, 0, 0,
+    0, 1, 0, 0,
+    0, 0, 1, 0,
+    0, 0, 0, 1
+  ]);
+}
+
+function translateZ(m, z) {
+  const out = m.slice();
+  out[14] += z;
+  return out;
+}
+
+function normalMatrix(m) {
+  // Extract and invert rotation part only
+  return new Float32Array([
+    m[0], m[1], m[2],
+    m[4], m[5], m[6],
+    m[8], m[9], m[10]
+  ]);
+}
+
+function translateY(m, y) {
+  const out = m.slice();
+  out[13] += y;
+  return out;
+}
+
+
+function rotateY(m, angle) {
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  const out = m.slice();
+
+  out[0] = c * m[0] + s * m[8];
+  out[1] = c * m[1] + s * m[9];
+  out[2] = c * m[2] + s * m[10];
+
+  out[8] = c * m[8] - s * m[0];
+  out[9] = c * m[9] - s * m[1];
+  out[10] = c * m[10] - s * m[2];
+
+  return out;
+}
+function translateXYZ(m, x, y, z) {
+  const out = m.slice();
+  out[12] += x;
+  out[13] += y;
+  out[14] += z;
+  return out;
+}
+
+function scaleXYZ(m, x, y, z) {
+  const out = m.slice();
+  out[0] *= x; out[1] *= x; out[2] *= x;
+  out[4] *= y; out[5] *= y; out[6] *= y;
+  out[8] *= z; out[9] *= z; out[10] *= z;
+  return out;
+}*/
+
+function createProjectionMatrix(fov, aspect, near, far) {
+  const f = 1.0 / Math.tan(fov / 2);
+  return new Float32Array([
+    f / aspect, 0, 0, 0,
+    0, f, 0, 0,
+    0, 0, (far + near) / (near - far), -1,
+    0, 0, (2 * far * near) / (near - far), 0
+  ]);
+}
+function createModelViewMatrix(x, y, z) {
+  return new Float32Array([
+    1, 0, 0, 0,
+    0, 1, 0, 0,
+    0, 0, 1, 0,
+    x, y, z, 1
+  ]);
+}
+
+
+
+// Uniform locations
+const uTime = gl.getUniformLocation(shaderProgram, 'uTime');
+const uProjectionMatrix = gl.getUniformLocation(shaderProgram, 'uProjectionMatrix');
+const uModelViewMatrix = gl.getUniformLocation(shaderProgram, 'uModelViewMatrix');
+const uNormalMatrix = gl.getUniformLocation(shaderProgram, 'uNormalMatrix');
+const uLightDirection = gl.getUniformLocation(shaderProgram, 'uLightDirection');
+
+
+// Animation
+/*
+function drawScene() {
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.clearColor(1, 1, 1, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);
+
+  const aspect = canvas.width / canvas.height;
+  const projectionMatrix = perspectiveMatrix(45 * Math.PI / 180, aspect, 0.1, 100);
+  let modelViewMatrix = identityMatrix();
+  modelViewMatrix = translateZ(modelViewMatrix, -5);
+
+  gl.uniformMatrix4fv(uProjectionMatrix, false, projectionMatrix);
+  gl.uniformMatrix4fv(uModelViewMatrix, false, modelViewMatrix);
+  gl.uniformMatrix3fv(uNormalMatrix, false, normalMatrix(modelViewMatrix));
+
+  gl.drawElements(gl.TRIANGLES, sphere.indices.length, gl.UNSIGNED_SHORT, 0);
+}*/
+
+let startTime = Date.now();
+/*
+function animate() {
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.clearColor(1, 1, 1, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);
+
+  const aspect = canvas.width / canvas.height;
+  const projectionMatrix = perspectiveMatrix(45 * Math.PI / 180, aspect, 0.1, 100);
+  let modelViewMatrix = identityMatrix();
+  modelViewMatrix = translateZ(modelViewMatrix, -5);
+
+  // Calculate time in seconds
+  let currentTime = (Date.now() - startTime) / 1000;
+
+  gl.uniformMatrix4fv(uProjectionMatrix, false, projectionMatrix);
+  gl.uniformMatrix4fv(uModelViewMatrix, false, modelViewMatrix);
+  gl.uniformMatrix3fv(uNormalMatrix, false, normalMatrix(modelViewMatrix));
+  gl.uniform1f(uTime, currentTime);
+
+  gl.drawElements(gl.TRIANGLES, sphere.indices.length, gl.UNSIGNED_SHORT, 0);
+
+  requestAnimationFrame(animate);
+}*/
+/*
+
+function animate() {
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.clearColor(1, 1, 1, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);
+  //gl.enable(gl.DEPTH_TEST);
+gl.clearDepth(1.0);
+gl.depthFunc(gl.LEQUAL);
+
+
+  const aspect = canvas.width / canvas.height;
+  const projectionMatrix = perspectiveMatrix(45 * Math.PI / 180, aspect, 0.1, 100);
+  gl.uniformMatrix4fv(uProjectionMatrix, false, projectionMatrix);
+
+  let currentTime = (Date.now() - startTime) / 1000;
+
+  // 🎯 Sphere 1
+  //let modelViewMatrix1 = identityMatrix();
+  //modelViewMatrix1 = translateXYZ(modelViewMatrix1, -2.5, Math.sin(currentTime * 2.0) * 0.2, -7.0);
+  let modelViewMatrix1 = identityMatrix();
+  let wobbleX = Math.sin(currentTime * 2.0) * 0.1;
+  modelViewMatrix1 = translateXYZ(modelViewMatrix1, 0.0,3.0+ wobbleX, -7.0);
+  modelViewMatrix1 = scaleXYZ(modelViewMatrix1, 0.5, 0.5, 0.5); // Normal size
+
+  gl.uniformMatrix4fv(uModelViewMatrix, false, modelViewMatrix1);
+  gl.uniformMatrix3fv(uNormalMatrix, false, normalMatrix(modelViewMatrix1));
+  gl.uniform1f(uTime, currentTime);
+  // Example: light from top center
+  gl.uniform3fv(uLightDirection, [0.0, -1.0, 0.0]);
+
+  gl.drawElements(gl.TRIANGLES, sphere.indices.length, gl.UNSIGNED_SHORT, 0);
+
+  // 🎯 Sphere 2
+  //let modelViewMatrix2 = identityMatrix();
+  //modelViewMatrix2 = translateXYZ(modelViewMatrix2, 2.5, Math.sin(currentTime * 2.5 + 1.0) * 0.2, -7.0);
+  let modelViewMatrix2 = identityMatrix();
+  //let wobbleY = Math.sin(currentTime * 2.0) * 0.2;
+  let wobbleY= Math.sin(currentTime * 1.2 + 1.5) * 0.25;
+  modelViewMatrix2 = translateXYZ(modelViewMatrix2, -2.5, -2.0+wobbleY, -7.1);
+  modelViewMatrix2 = scaleXYZ(modelViewMatrix2, 0.7, 0.7, 0.7); // Bigger sphere
+
+  gl.uniformMatrix4fv(uModelViewMatrix, false, modelViewMatrix2);
+  gl.uniformMatrix3fv(uNormalMatrix, false, normalMatrix(modelViewMatrix2));
+  gl.uniform1f(uTime, currentTime);
+  gl.uniform3fv(uLightDirection, [-1.0, 0, 0.2]);
+  gl.drawElements(gl.TRIANGLES, sphere.indices.length, gl.UNSIGNED_SHORT, 0);
+
+  let modelViewMatrix3 = identityMatrix();
+  //let wobbleY = Math.sin(currentTime * 2.0) * 0.2;
+  let wobbleZ= Math.sin(currentTime * 1.8 + 1.0) * 0.25;
+  modelViewMatrix3 = translateXYZ(modelViewMatrix3, 2.5, -2.0+wobbleZ, -7.1);
+  modelViewMatrix3 = scaleXYZ(modelViewMatrix3, 0.5, 0.5, 0.5); // Bigger sphere
+
+  gl.uniformMatrix4fv(uModelViewMatrix, false, modelViewMatrix3);
+  gl.uniformMatrix3fv(uNormalMatrix, false, normalMatrix(modelViewMatrix3));
+  gl.uniform1f(uTime, currentTime);
+  gl.uniform3fv(uLightDirection, [-1.0, 0, 0.2]);
+  gl.drawElements(gl.TRIANGLES, sphere.indices.length, gl.UNSIGNED_SHORT, 0);
+
+  requestAnimationFrame(animate);
+}*/
+/*
+function animate() {
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.clearColor(1, 1, 1, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);
+  gl.clearDepth(1.0);
+  gl.depthFunc(gl.LEQUAL);
+
+  const aspect = (canvas.width/2) / (canvas.height/2);
+  const currentTime = (Date.now() - startTime) / 1000;
+
+  // ✅ Sphere 1
+  let proj1 = perspectiveMatrix(45 * Math.PI / 180, aspect, 0.1, 100);
+  let model1 = identityMatrix();
+  let wobble1 = Math.sin(currentTime * 2.0) * 0.1;
+  model1 = translateXYZ(model1, 0.0, 3.0 + wobble1, -7.0);
+  model1 = scaleXYZ(model1, 0.5, 0.5, 0.5);
+
+  gl.uniformMatrix4fv(uProjectionMatrix, false, proj1);
+  gl.uniformMatrix4fv(uModelViewMatrix, false, model1);
+  gl.uniformMatrix3fv(uNormalMatrix, false, normalMatrix(model1));
+  gl.uniform3fv(uLightDirection, [0.0, -1.0, 0.0]);
+  gl.drawElements(gl.TRIANGLES, sphere.indices.length, gl.UNSIGNED_SHORT, 0);
+
+  // ✅ Sphere 2
+  let proj2 = perspectiveMatrix(45 * Math.PI / 180, aspect, 0.1, 100);
+  let model2 = identityMatrix();
+  let wobble2 = Math.sin(currentTime * 1.5 + 1.5) * 0.25;
+  model2 = translateXYZ(model2, -3, -2.0 + wobble2, -7.0);
+  model2 = scaleXYZ(model2, 0.7, 0.6, 0.7);
+
+  gl.uniformMatrix4fv(uProjectionMatrix, false, proj2);
+  gl.uniformMatrix4fv(uModelViewMatrix, false, model2);
+  gl.uniformMatrix3fv(uNormalMatrix, false, normalMatrix(model2));
+  gl.uniform3fv(uLightDirection, [-1.0, 0.0, 0.2]);
+  gl.drawElements(gl.TRIANGLES, sphere.indices.length, gl.UNSIGNED_SHORT, 0);
+
+  // ✅ Sphere 3
+  let proj3 = perspectiveMatrix(45 * Math.PI / 180, aspect, 0.1, 100);
+  let model3 = identityMatrix();
+  let wobble3 = Math.sin(currentTime * 1.8 + 1.0) * 0.25;
+  model3 = translateXYZ(model3, 2.5, -2.0 + wobble3, -7.0);
+  model3 = scaleXYZ(model3, 0.5, 0.5, 0.5);
+
+  gl.uniformMatrix4fv(uProjectionMatrix, false, proj3);
+  gl.uniformMatrix4fv(uModelViewMatrix, false, model3);
+  gl.uniformMatrix3fv(uNormalMatrix, false, normalMatrix(model3));
+  gl.uniform3fv(uLightDirection, [1.0, -0.5, 0.5]);
+  gl.drawElements(gl.TRIANGLES, sphere.indices.length, gl.UNSIGNED_SHORT, 0);
+
+  requestAnimationFrame(animate);
+}*/
+
+function animate() {
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.clearColor(1, 1, 1, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);
+
+  const aspect = canvas.width / canvas.height;
+  const currentTime = (Date.now() - startTime) / 1000;
+
+  // 🎯 Sphere 1 - Custom projection matrix
+  const projMatrix = createProjectionMatrix(Math.PI / 4, canvas.width / canvas.height, 0.1, 100);
+  //let model1 = identityMatrix();
+  
+  //model1 = translateXYZ(model1, 0.0, 3.0 + wobble1, -7.0);
+  //model1 = scaleXYZ(model1, 0.5, 0.5, 0.5);
+  
+  gl.uniformMatrix4fv(uProjectionMatrix, false, projMatrix);
+  const x = 0.0;
+  const y = 2.0;
+  const z = -7.0;
+   let wobble1 = Math.sin(currentTime * 2.0) * 0.1;
+  let model1 = createModelViewMatrix(x, y+wobble1, z);
+  
+  gl.uniformMatrix4fv(uModelViewMatrix, false, model1);
+  //gl.uniformMatrix3fv(uNormalMatrix, false, normalMatrix(model1));
+  gl.uniform3fv(uLightDirection, [0.0, -1.0, 0.0]);
+  gl.drawElements(gl.TRIANGLES, sphere.indices.length, gl.UNSIGNED_SHORT, 0);
+
+  // 🎯 Sphere 2 - Different projection
+  let proj2 = [
+    1.0, 0, 0, 0,
+    0, 0.9, 0, 0,
+    0, 0, -1, -1,
+    0, 0, -2.5, 0
+  ];
+  let model2 = identityMatrix();
+  let wobble2 = Math.sin(currentTime * 1.5 + 1.5) * 0.25;
+  model2 = translateXYZ(model2, -2.5, -2.0 + wobble2, -7.0);
+  model2 = scaleXYZ(model2, 0.7, 0.7, 0.7);
+  gl.uniformMatrix4fv(uProjectionMatrix, false, new Float32Array(proj2));
+  gl.uniformMatrix4fv(uModelViewMatrix, false, model2);
+  gl.uniformMatrix3fv(uNormalMatrix, false, normalMatrix(model2));
+  gl.uniform3fv(uLightDirection, [-1.0, 0.0, 0.2]);
+  gl.drawElements(gl.TRIANGLES, sphere.indices.length, gl.UNSIGNED_SHORT, 0);
+
+  // 🎯 Sphere 3 - Another projection
+  let proj3 = [
+    0.9, 0, 0, 0,
+    0, 1.2, 0, 0,
+    0, 0, -1, -1,
+    0, 0, -3.0, 0
+  ];
+  let model3 = identityMatrix();
+  let wobble3 = Math.sin(currentTime * 1.8 + 1.0) * 0.25;
+  model3 = translateXYZ(model3, 2.5, -2.0 + wobble3, -7.0);
+  model3 = scaleXYZ(model3, 0.5, 0.5, 0.5);
+  gl.uniformMatrix4fv(uProjectionMatrix, false, new Float32Array(proj3));
+  gl.uniformMatrix4fv(uModelViewMatrix, false, model3);
+  gl.uniformMatrix3fv(uNormalMatrix, false, normalMatrix(model3));
+  gl.uniform3fv(uLightDirection, [1.0, -0.5, 0.5]);
+  gl.drawElements(gl.TRIANGLES, sphere.indices.length, gl.UNSIGNED_SHORT, 0);
+
+  requestAnimationFrame(animate);
+}
+
+
+
+/*
+function animate() {
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.clearColor(1, 1, 1, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);
+
+  const aspect = canvas.width / canvas.height;
+  const projectionMatrix = perspectiveMatrix(45 * Math.PI / 180, aspect, 0.1, 100);
+  let modelViewMatrix = identityMatrix();
+  modelViewMatrix = translateZ(modelViewMatrix, -5);
+  modelViewMatrix = translateY(modelViewMatrix, -3);
+
+  let currentTime = (Date.now() - startTime) / 1000;
+
+  // 💡 Wobble up and down with sine wave
+  let wobbleY = Math.sin(currentTime * 2.0) * 0.2; // frequency * amplitude
+  modelViewMatrix = translateXYZ(modelViewMatrix, 2, wobbleY, -5);
+
+  // 💫 Optional: Rotate slowly
+  //modelViewMatrix = rotateY(modelViewMatrix, currentTime * 0.5);
+
+  gl.uniformMatrix4fv(uProjectionMatrix, false, projectionMatrix);
+  gl.uniformMatrix4fv(uModelViewMatrix, false, modelViewMatrix);
+  gl.uniformMatrix3fv(uNormalMatrix, false, normalMatrix(modelViewMatrix));
+  gl.uniform1f(uTime, currentTime);
+
+  gl.drawElements(gl.TRIANGLES, sphere.indices.length, gl.UNSIGNED_SHORT, 0);
+
+  requestAnimationFrame(animate);
+}*/
+/*
+function animate_Y() {
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.clearColor(1, 1, 1, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);
+
+  const aspect = canvas.width / canvas.height;
+  const projectionMatrix = perspectiveMatrix(45 * Math.PI / 180, aspect, 0.1, 100);
+  let modelViewMatrix = identityMatrix();
+  modelViewMatrix = translateZ(modelViewMatrix, -5);
+  modelViewMatrix = translateY(modelViewMatrix, 0);
+
+  let currentTime = (Date.now() - startTime) / 1000;
+
+  // 💡 Wobble up and down with sine wave
+  let wobbleY = Math.sin(currentTime * 2.0) * 0.2; // frequency * amplitude
+  modelViewMatrix = translateXYZ(modelViewMatrix, 2, wobbleY, -5);
+
+  // 💫 Optional: Rotate slowly
+  //modelViewMatrix = rotateY(modelViewMatrix, currentTime * 0.5);
+
+  gl.uniformMatrix4fv(uProjectionMatrix, false, projectionMatrix);
+  gl.uniformMatrix4fv(uModelViewMatrix, false, modelViewMatrix);
+  gl.uniformMatrix3fv(uNormalMatrix, false, normalMatrix(modelViewMatrix));
+  gl.uniform1f(uTime, currentTime);
+
+  gl.drawElements(gl.TRIANGLES, sphere.indices.length, gl.UNSIGNED_SHORT, 0);
+
+  requestAnimationFrame(animate_Y);
+}
+*/
+/*
+function animate() {
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.clearColor(1, 1, 1, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);
+
+  const aspect = canvas.width / canvas.height;
+  const projectionMatrix = perspectiveMatrix(45 * Math.PI / 180, aspect, 0.1, 100);
+  let modelViewMatrix = identityMatrix();
+  modelViewMatrix = translateZ(modelViewMatrix, -5);
+
+  // Add rotation based on time
+  let currentTime = (Date.now() - startTime) / 1000;
+  modelViewMatrix = rotateY(modelViewMatrix, currentTime * 0.5); // 0.5 = speed
+
+  gl.uniformMatrix4fv(uProjectionMatrix, false, projectionMatrix);
+  gl.uniformMatrix4fv(uModelViewMatrix, false, modelViewMatrix);
+  gl.uniformMatrix3fv(uNormalMatrix, false, normalMatrix(modelViewMatrix));
+  gl.uniform1f(uTime, currentTime);
+
+  gl.drawElements(gl.TRIANGLES, sphere.indices.length, gl.UNSIGNED_SHORT, 0);
+
+  requestAnimationFrame(animate);
+}
+*/
+
+
+animate();
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+}
+
+//drawScene();
+</script>
+</body>
+</html>
