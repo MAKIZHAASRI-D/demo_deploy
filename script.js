@@ -53,7 +53,7 @@ var bkgdColor = 255;
 var bkgdStrokeColor = 255;
 var inp1, inp2, inp3, inp4, inp5, inp6;
 var inpNumber = 1;
-const bg_colour="#FFFFFF"; // Default background color
+const bg_colour="#fffdfdff"; // Default background color
 const strk_colour="#000000"; // Default stroke color
 
 // PRESETS
@@ -125,6 +125,7 @@ function setup(){
   bkgdColorPicker = color(bg_colour);
 //  bkgdStrokeColorPicker = createColorPicker('#FFFFFF'); bkgdStrokeColorPicker.position(160, 310); bkgdStrokeColorPicker.style('height', '20px');
 }
+const staticText ="DEV-TEAM";
 
 function draw(){
     
@@ -258,11 +259,39 @@ pop();
   rotateX(radians(xRotCamera));
   rotateY(radians(yRotCamera));
   rotateZ(radians(zRotCamera));
+
+  push();
+    resetMatrix();
+    translate(0, 0, zoomCamera);
+    
+    textFont(font);
+    let centerTextSize = typeY * 3.5; // Larger for center text
+    textSize(centerTextSize);
+    
+    
+    let textW = textWidth(staticText);
+    let textH = centerTextSize * 0.8;
+    
+    // Position at center of ring
+    translate(-textW/2, textH/3, -radius * 0.6);
+    
+    //fill(50); // Red color for visibility
+    fill(0, 0, 0, 150);
+    noStroke();
+    //stroke(255, 0, 0); // Red stroke
+    //strokeWeight(2);
+    textAlign(LEFT, BASELINE);
+    //translate(-textWidth('Hello') / 2, 0);
+    //scale(1.5, 1);
+    //textSize(52);
+    text(staticText, 0, 0);
+  pop();
   
   // center stack
   //translate(0,-(stackNum-1)*stackHeight/2);
   
   // rotation
+  push();
   rotateY(frameCount*(rRotate/1000));
            	
   for(var i =0; i<inpText.length*stackNum; i++) {
@@ -333,6 +362,7 @@ pop();
   	pop();
  	}
 	pop();
+  pop();
     /*
     // Fixed text that appears encircled by the rotating structure
 for (var i = 0; i < inpText.length * stackNum; i++) {
@@ -536,7 +566,7 @@ function pride() {
   inp1 = color('#e70000');inp2 = color('#ff8c00'); inp3 = color('#ffef00');inp4 = color('#00811f'); inp5 = color('#0044ff'); inp6 = color('#760089');
 }
 */
-text("HELLO", 0, 0, 0);
+//text("HELLO", 0, 0, 0);
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
 }

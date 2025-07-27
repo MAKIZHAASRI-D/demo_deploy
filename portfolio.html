@@ -34,17 +34,11 @@
 <div id="container">
   <canvas id="webglcanvas"></canvas>
   <div id="p5canvas"></div>
-  <div id="controls">
-    <h3>Display Mode</h3>
-    <button id="spheresBtn" >Spheres Only</button>
-    <button id="textBtn" class="active" default="true">Text Only</button>
-    <button id="bothBtn">Both Combined</button>
   </div>
 </div>
 
 <!-- p5.js library -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.min.js"></script>
-<script src="keyboardengine.js"></script>
 
 <script>
 // =============================================================================
@@ -53,7 +47,7 @@
 const canvas = document.getElementById('webglcanvas');
 let gl = canvas.getContext('webgl');
 let spheresVisible = true;
-let textVisible = false;
+let textVisible = true;
 
 // Resize WebGL canvas
 function resizeWebGL() {
@@ -198,7 +192,7 @@ const staticText = "DEV-TEAM";
 let typeStroke = 1;
 
 // Cylinder parameters
-let radius = 250;
+let radius = 150;
 let stackNum = 1;
 let rRotate = -15;
 let typeY = 40;
@@ -206,27 +200,17 @@ let stackHeight;
 let pieSlice;
 
 // Camera
-let xRotCamera = -187;
-let yRotCamera = -155;
-let zRotCamera = -103;
+let xRotCamera = 10;
+let yRotCamera = -17;
+let zRotCamera = 72;
 let zoomCamera = 124;
 
 // Colors
 const bg_colour = "#FFFFFF";
-let strk_colour = "#ff0000";
+let strk_colour = "#000000";
 let backColor = "#FFFFFF";
 let backColorTarget = "#ff0000";
 let colorChangeRate = 0.1;
-/*
-function preload() {
-  font = p.loadFont('assets/ROMANUS.otf', () => {
-    fontReady = true;
-  });
-  staticfont = loadFont('assets/Avenue de Madison.ttf', () => {
-    fontReady = true;
-  });
-}*/
-
 
 // Create fallback fonts
 function createFallbackFont() {
@@ -244,11 +228,6 @@ function initP5() {
       staticfont = p.loadFont('assets/ROMANUS.otf');
       fontReady = true;
     };
-    p.getTransformedZ=function(p, x, y, z) {
-  let mvMatrix = p._renderer.uMVMatrix.mat4; // 4x4 model-view matrix
-  let tx = mvMatrix[8] * x + mvMatrix[9] * y + mvMatrix[10] * z + mvMatrix[11];
-  return tx;
-}
 
     p.setup = function() {
       let canvas = p.createCanvas(p.windowWidth, p.windowHeight, p.WEBGL);
@@ -273,7 +252,7 @@ function initP5() {
 
       p.push();
       // Camera setup
-      p.translate(0, 0, zoomCamera);
+      p.translate(0, -40, zoomCamera);
       p.rotateX(p.radians(xRotCamera));
       p.rotateY(p.radians(yRotCamera));
       p.rotateZ(p.radians(zRotCamera));
@@ -281,88 +260,58 @@ function initP5() {
       // Draw static centered text
       p.push();
         p.resetMatrix();
-        p.translate(0, 0, -radius * 0.9);
+        p.translate(0, -40, -radius * 1.7);
         
         p.textFont(staticfont);
-        let centerTextSize = typeY * 3.5;
+        // CHANGE THIS LINE TO ADJUST STATIC TEXT SIZE: multiply typeY by your desired factor
+        let centerTextSize = typeY * 1.5;
         p.textSize(centerTextSize);
         
-        let textW = p.textWidth(staticText);
-        let textH = centerTextSize * 0.7;
-        
-        p.translate(-textW/2, textH/3, -radius * 0.6);
+        // Position text at exact center of the ring (0, 0) - no offset calculations needed
+        p.translate(0, 0, -radius * 0.9);
         
         p.fill(0, 0, 0, 200);
         p.noStroke();
-        p.textAlign(p.LEFT, p.BASELINE);
+        p.textAlign(p.CENTER, p.CENTER); // This centers the text at the origin
         p.text(staticText, 0, 0);
       p.pop();
 
       // Draw rotating ring
       p.push();
-      let frontColor = p.color(strk_colour);
-let backColorFade = p.color(180);
+        let frontColor = p.color(strk_colour);
+        let backColorFade = p.color(180, 180, 180, 100);
         p.rotateY(p.frameCount * (rRotate/1000));
         
         for(let i = 0; i < rotatingText.length * stackNum; i++) {
           let ringSpot = i % rotatingText.length;
           let currentChar = rotatingText.charAt(ringSpot);
-          var angle = (ringSpot * pieSlice + p.frameCount * (rRotate/1000)) % p.TWO_PI;
-          var isBackside = angle > p.PI/2 && angle < 3*p.PI/2;
-    
-    // Set stroke color
-    if (angle<0) angle +=p.TWO_PI;
-    var isBackside = angle > p.PI/2 && angle < 3*p.PI/2;
-
-    // Calculate lerp factor based on position - smoother transition
-          let lerpFactor;
-          if (angle <= p.PI/2) {
-            // Front to side transition
-            lerpFactor = angle / (p.PI/2);
-          } else if (angle <= p.PI) {
-            // Side to back transition  
-            lerpFactor = 1.0;
-          } else if (angle <= 3*p.PI/2) {
-            // Back to side transition
-            lerpFactor = 1.0;
-          } else {
-            // Side to front transition
-            lerpFactor = 1.0 - ((angle - 3*p.PI/2) / (p.PI/2));
-          }
           
-          // More gradual transition based on exact angle
-          let smoothFactor = Math.abs(Math.cos(angle));
-          smoothFactor = Math.pow(smoothFactor, 0.5);
-    
-   
+          // Calculate the current angle for this character INCLUDING the rotation
+          var angle = (ringSpot * pieSlice + p.frameCount * (rRotate/1000)) % p.TWO_PI;
+          
+          // Normalize angle to 0-2π range
+          if (angle < 0) angle += p.TWO_PI;
+          
+          // Calculate smooth brightness factor based on position around cylinder
+          // When angle = 0 (front): brightness = 1.0 (full color)
+          // When angle = π (back): brightness = 0.0 (faded)
+          let brightness = (Math.cos(angle) + 1.0) / 2.0; // Maps cos(-1 to 1) to (0 to 1)
+          
+          // Apply a curve to make the transition more dramatic
+          brightness = Math.pow(brightness, 1.5); // Adjust this exponent to control fade curve
           
           p.push();
             p.translate(0, Math.floor(i/rotatingText.length) * stackHeight);
             p.rotateY(ringSpot * pieSlice);
             p.translate(0, 0, radius);
-            /*
-            let normalZ = p.getTransformedZ(p, 0, 0, 0);
-            if (normalZ < 0) {
-                  p.fill(180); // back color
-            } else {
-                  p.fill(strk_colour); // front color
-            }*/
-
             
             p.textFont(font);
             p.textSize(typeY);
-           
-       /*     if(isBackside) {
-        //backColor = p.lerpColor(backColor, backColorTarget, colorChangeRate);
-        p.fill(backColor);
-    } else {
-        p.fill(strk_colour);
-    }*/
-   /*let lerpedColor = p.lerpColor(frontColor, backColorFade, isBackside ? 1 : 0);
-    p.fill(lerpedColor);*/
-    let lerpedColor = p.lerpColor(frontColor, backColorFade, 1.0 - smoothFactor);
+            
+            // Dynamic color interpolation based on brightness (front to back fade)
+            let lerpedColor = p.lerpColor(backColorFade, frontColor, brightness);
             p.fill(lerpedColor);
-            //p.fill(strk_colour);
+            
             p.noStroke();
             p.textAlign(p.CENTER, p.CENTER);
             p.text(currentChar, 0, 0);
@@ -371,7 +320,6 @@ let backColorFade = p.color(180);
       p.pop();
       
       p.pop();
-      
     };
 
     p.windowResized = function() {
@@ -390,32 +338,9 @@ function render(time) {
   requestAnimationFrame(render);
 }
 
-// Control buttons
-document.getElementById('spheresBtn').addEventListener('click', function() {
-  spheresVisible = true;
-  textVisible = false;
-  updateButtonStates('spheresBtn');
-  canvas.style.display = 'block';
-});
 
-document.getElementById('textBtn').addEventListener('click', function() {
-  spheresVisible = false;
-  textVisible = true;
-  updateButtonStates('textBtn');
-  canvas.style.display = 'none';
-});
 
-document.getElementById('bothBtn').addEventListener('click', function() {
-  spheresVisible = true;
-  textVisible = true;
-  updateButtonStates('bothBtn');
-  canvas.style.display = 'block';
-});
 
-function updateButtonStates(activeId) {
-  document.querySelectorAll('button').forEach(btn => btn.classList.remove('active'));
-  document.getElementById(activeId).classList.add('active');
-}
 
 // Initialize everything
 window.addEventListener('resize', function() {

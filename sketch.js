@@ -377,7 +377,7 @@ function draw() {
         // Draw character
         textFont(font);
         textSize(typeY);
-        fill(strk_colour);
+        //fill(strk_colour);
         noStroke();
         textAlign(CENTER, CENTER);
         text(currentChar, 0, 0);
